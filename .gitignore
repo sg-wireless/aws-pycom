@@ -1,4 +1,4 @@
 # exclude certs and keys
-/*.pem
-/*.key
-/*.crt
+/cert/*.pem
+/cert/*.key
+/cert/*.crt
