@@ -87,6 +87,26 @@ class MQTTClient:
     def setMQTTOperationTimeoutSecond(self, srcMQTTOperationTimeout):
         self._mqttOperationTimeout = srcMQTTOperationTimeout
 
+    def clearLastWill(self):
+        self._will = False
+        self._will_topic = ""
+        self._will_message= None
+        self._will_qos = 0
+        self._will_retain = False
+
+    def setLastWill(self, topic, payload=None, QoS=0, retain=False):
+        self._will=True
+        self._will_qos = QoS
+        self._will_retain = retain
+        self._will_topic = topic.encode('utf8')
+
+        if isinstance(payload, bytearray):
+            self._will_message=payload
+        elif isinstance(payload, str):
+            self._will_message=payload.encode('utf8')
+        elif isinstance(payload, int) or isinstance(payload, float):
+            self._will_message=str(payload)
+
     def connect(self, keepAliveInterval=30):
         self._keepAliveInterval = keepAliveInterval
 

@@ -18,11 +18,11 @@ class AWSIoTMQTTClient:
         self._mqttClient = mqttClient.MQTTClient(clientID, cleanSession, protocolType)
 
     # Configuration APIs
-    #def configureLastWill(self, topic, payload, QoS):
-        #self._mqttCore.setLastWill(topic, payload, QoS)
+    def configureLastWill(self, topic, payload, QoS):
+        self._mqttClient.setLastWill(topic, payload, QoS)
 
-    #def clearLastWill(self):
-        #self._mqttCore.clearLastWill()
+    def clearLastWill(self):
+        self._mqttClient.clearLastWill()
 
     def configureEndpoint(self, hostName, portNumber):
         self._mqttClient.configEndpoint(hostName, portNumber)
