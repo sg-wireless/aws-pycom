@@ -69,6 +69,7 @@ class MQTTClient:
         self._callback_mutex=_thread.allocate_lock()
         self._pid = 0
         self._subscribeSent = False
+        self._unsubscribeSent = False
         self._poll = select.poll()
 
     def configEndpoint(self, srcHost, srcPort):
@@ -168,6 +169,47 @@ class MQTTClient:
 
         self._push_on_send_queue(pkt)
         self._push_on_send_queue(payload)
+
+    def _remove_topic_callback(self, topic):
+        deleted=False
+
+        self._callback_mutex.acquire()
+        for i in range(0, len(self._topic_callback_queue)):
+            if self._topic_callback_queue[i][0] == topic:
+                self._topic_callback_queue.pop(i)
+                deleted=True
+        self._callback_mutex.release()
+
+        return deleted
+
+    def unsubscribe(self, topic):
+
+        self._unsubscribeSent = False
+        self._send_unsubscribe(topic, False)
+
+        count_10ms = 0
+        while(count_10ms <= self._mqttOperationTimeout * 100 and not self._unsubscribeSent):
+            count_10ms += 1
+            time.sleep(0.01)
+
+        if self._unsubscribeSent:
+            topic = topic.encode('utf8')
+            return self._remove_topic_callback(topic)
+
+        return False
+
+    def disconnect(self):
+
+        pkt = struct.pack('!BB', self.MSG_DISCONNECT, 0)
+        self._push_on_send_queue(pkt)
+
+        time.sleep(self._connectdisconnectTimeout)
+
+        if self._sock:
+            self._sock.close()
+            self._sock = None
+
+        return True
 
     def _encode_16(self, x):
         return struct.pack("!H", x)
@@ -274,6 +316,21 @@ class MQTTClient:
 
         return self._push_on_send_queue(pkt)
 
+    def _send_unsubscribe(self, topic, dup=False):
+
+        pkt = bytearray()
+        msg_type = self.MSG_UNSUBSCRIBE | (dup<<3) | (1<<1)
+        pkt.extend(struct.pack("!B", msg_type))
+
+        remaining_length = 2 + 2 + len(topic)
+        pkt.extend(self._encode_varlen_length(remaining_length))
+
+        self._pid += 1
+        pkt.extend(self._encode_16(self._pid))
+        pkt.extend(self._pascal_string(topic))
+
+        return self._push_on_send_queue(pkt)
+
     def _send_puback(self, msg_id):
 
         remaining_length = 2
@@ -376,6 +433,10 @@ class MQTTClient:
 
         return True
 
+    def _parse_unsuback(self, payload):
+        self._unsubscribeSent = True
+        return True
+
     def _parse_packet(self, cmd, payload):
         msg_type = cmd & 0xF0
 
@@ -387,6 +448,8 @@ class MQTTClient:
             return self._parse_puback(payload)
         elif msg_type == self.MSG_PUBLISH:
             return self._parse_publish(cmd, payload)
+        elif msg_type == self.MSG_UNSUBACK:
+            return self._parse_unsuback(payload)
         else:
             print('Unknown message type: %d' % msg_type)
             return False

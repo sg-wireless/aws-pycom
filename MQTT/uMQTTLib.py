@@ -52,8 +52,8 @@ class AWSIoTMQTTClient:
     def connect(self, keepAliveIntervalSecond=30):
         return self._mqttClient.connect(keepAliveIntervalSecond)
 
-    #def disconnect(self):
-        #return self._mqttCore.disconnect()
+    def disconnect(self):
+        return self._mqttClient.disconnect()
 
     def publish(self, topic, payload, QoS):
         return self._mqttClient.publish(topic, payload, QoS, False)  # Disable retain for publish by now
@@ -61,8 +61,8 @@ class AWSIoTMQTTClient:
     def subscribe(self, topic, QoS, callback):
         return self._mqttClient.subscribe(topic, QoS, callback)
 
-    #def unsubscribe(self, topic):
-        #return self._mqttCore.unsubscribe(topic)
+    def unsubscribe(self, topic):
+        return self._mqttClient.unsubscribe(topic)
 
 
 #class AWSIoTMQTTShadowClient:
