@@ -1,29 +1,52 @@
-import machine
-import os
-import time
-import demo
+from network import WLAN
+from MQTT.uMQTTLib import AWSIoTMQTTClient
 
-uart=machine.UART(0,115200)
-os.dupterm(uart)
-if machine.reset_cause()!=machine.SOFT_RESET:
-    from network import WLAN
-    known_nets=[(("Microlab","M!cr0l@b"))]
-    wl=WLAN()
-    original_ssid=wl.ssid()
-    original_auth=wl.auth()
-    wl.mode(WLAN.STA)
-    available_nets=wl.scan()
-    nets=frozenset([e.ssid for e in available_nets])
-    known_nets_names=frozenset([e[0]for e in known_nets])
-    net_to_use=list(nets&known_nets_names)
-    try:
-        net_to_use=net_to_use[0]
-        pwd=dict(known_nets)[net_to_use]
-        sec=[e.sec for e in available_nets if e.ssid==net_to_use][0]
-        wl.connect(net_to_use,(sec,pwd),timeout=10000)
-        while not wl.isconnected():
-            time.sleep(0.1)
-    except:
-        wl.init(mode=WLAN.AP,ssid=original_ssid,auth=original_auth,channel=6,antenna=WLAN.INT_ANT)
-        
-demo.run()
+import machine
+import time
+
+WIFI_SSID = 'your ssid'
+WIFI_PASS = 'your pass'
+
+wlan = WLAN(mode=WLAN.STA)
+wlan.connect(WIFI_SSID, auth=(None, WIFI_PASS), timeout=5000)
+while not wlan.isconnected():
+    machine.idle() # save power while waiting
+
+print('WLAN connection succeeded!')
+
+def customCallback(client, userdata, message):
+	print("Received a new message: ")
+	print(message.payload)
+	print("from topic: ")
+	print(message.topic)
+	print("--------------\n\n")
+
+clientId="basicPubSub"
+host='a15n3kcirh9jxj.iot.eu-west-1.amazonaws.com'
+rootCAPath='/flash/root-CA.crt'
+certificatePath='/flash/WindowsSample.cert.pem'
+privateKeyPath='/flash/WindowsSample.private.key'
+
+pycomAwsMQTTClient = AWSIoTMQTTClient(clientId)
+pycomAwsMQTTClient.configureEndpoint(host, 8883)
+pycomAwsMQTTClient.configureCredentials(rootCAPath, privateKeyPath, certificatePath)
+
+#pycomAwsMQTTClient.configureAutoReconnectBackoffTime(1, 32, 20)
+#pycomAwsMQTTClient.configureOfflinePublishQueueing(-1)  # Infinite offline Publish queueing
+#pycomAwsMQTTClient.configureDrainingFrequency(2)  # Draining: 2 Hz
+pycomAwsMQTTClient.configureConnectDisconnectTimeout(10)  # 10 sec
+pycomAwsMQTTClient.configureMQTTOperationTimeout(5)  # 5 sec
+
+
+if pycomAwsMQTTClient.connect():
+    print('AWS connection succeeded')
+
+topic="a topic"
+pycomAwsMQTTClient.subscribe(topic, 1, customCallback)
+time.sleep(2)
+
+loopCount = 0
+while True:
+	pycomAwsMQTTClient.publish(topic, "New Message " + str(loopCount), 1)
+	loopCount += 1
+	time.sleep(10.0)
