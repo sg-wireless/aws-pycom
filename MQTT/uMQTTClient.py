@@ -1,3 +1,5 @@
+import MQTT.uMQTTConst as mqttConst
+
 import socket
 import ssl
 import _thread
@@ -17,27 +19,6 @@ class MQTTMessage:
         self.retain = False
 
 class MQTTClient:
-
-    # Connection state
-    STATE_CONNECTED = 0x01
-    STATE_CONNECTING = 0x02
-    STATE_DISCONNECTED = 0x03
-
-    # Message types
-    MSG_CONNECT = 0x10
-    MSG_CONNACK = 0x20
-    MSG_PUBLISH = 0x30
-    MSG_PUBACK = 0x40
-    MSG_PUBREC = 0x50
-    MSG_PUBREL = 0x60
-    MSG_PUBCOMP = 0x70
-    MSG_SUBSCRIBE = 0x80
-    MSG_SUBACK = 0x90
-    MSG_UNSUBSCRIBE = 0xA0
-    MSG_UNSUBACK = 0xB0
-    MSG_PINGREQ = 0xC0
-    MSG_PINGRESP = 0xD0
-    MSG_DISCONNECT = 0xE0
 
     def __init__(self, clientID, cleanSession, protocol):
         self.client_id = clientID
@@ -60,8 +41,10 @@ class MQTTClient:
         self._will_retain = False
         self._out_packet_mutex=_thread.allocate_lock()
         self._output_queue=[]
+        self._output_queue_size=-1
+        self._output_queue_dropbehavior=-1
         self._io_thread=_thread.start_new_thread(self._io_thread_func,())
-        self._connection_state = self.STATE_DISCONNECTED
+        self._connection_state = mqttConst.STATE_DISCONNECTED
         self._connectdisconnectTimeout = 30
         self._mqttOperationTimeout = 5
         self._conn_state_mutex=_thread.allocate_lock()
@@ -110,6 +93,13 @@ class MQTTClient:
     def configIAMCredentials(self, srcAWSAccessKeyID, srcAWSSecretAccessKey, srcAWSSessionToken):
         raise NotImplementedError ('Websockets not supported')
 
+    def setOfflinePublishQueueing(self, srcQueueSize, srcDropBehavior):
+        if srcDropBehavior != mqttConst.DROP_OLDEST and srcDropBehavior != mqttConst.DROP_NEWEST:
+            raise ValueError("Invalid packet drop behavior")
+
+        self._output_queue_size=srcQueueSize
+        self._output_queue_dropbehavior=srcDropBehavior
+
     def connect(self, keepAliveInterval=30):
         self._keepAliveInterval = keepAliveInterval
 
@@ -137,11 +127,11 @@ class MQTTClient:
 
         # delay to check the state
         count_10ms = 0
-        while(count_10ms <= self._connectdisconnectTimeout * 100 and self._connection_state != self.STATE_CONNECTED):
+        while(count_10ms <= self._connectdisconnectTimeout * 100 and self._connection_state != mqttConst.STATE_CONNECTED):
             count_10ms += 1
             time.sleep(0.01)
 
-        return True if self._connection_state == self.STATE_CONNECTED else False
+        return True if self._connection_state == mqttConst.STATE_CONNECTED else False
 
     def subscribe(self, topic, qos, callback):
         if (topic is None or callback is None):
@@ -223,7 +213,7 @@ class MQTTClient:
 
     def disconnect(self):
 
-        pkt = struct.pack('!BB', self.MSG_DISCONNECT, 0)
+        pkt = struct.pack('!BB', mqttConst.MSG_DISCONNECT, 0)
         self._push_on_send_queue(pkt)
 
         time.sleep(self._connectdisconnectTimeout)
@@ -323,7 +313,7 @@ class MQTTClient:
             flags |= (self._will_retain << 3 | self._will_qos << 1 | 1) << 2
             pkt_len += 4 + len(self._will_topic) + len(self._will_message)
 
-        pkt = bytearray([self.MSG_CONNECT]) # connect
+        pkt = bytearray([mqttConst.MSG_CONNECT]) # connect
         pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
         pkt.extend(b'\x00\x04MQTT\x04') # len of "MQTT" (16 bits), protocol name, and protocol version
         pkt.append(flags)
@@ -342,7 +332,7 @@ class MQTTClient:
     def _send_unsubscribe(self, topic, dup=False):
 
         pkt = bytearray()
-        msg_type = self.MSG_UNSUBSCRIBE | (dup<<3) | (1<<1)
+        msg_type = mqttConst.MSG_UNSUBSCRIBE | (dup<<3) | (1<<1)
         pkt.extend(struct.pack("!B", msg_type))
 
         remaining_length = 2 + 2 + len(topic)
@@ -357,19 +347,39 @@ class MQTTClient:
     def _send_puback(self, msg_id):
 
         remaining_length = 2
-        pkt = struct.pack('!BBH', self.MSG_PUBACK, remaining_length, msg_id)
+        pkt = struct.pack('!BBH', mqttConst.MSG_PUBACK, remaining_length, msg_id)
 
         return self._push_on_send_queue(pkt)
 
     def _send_pubrec(self, msg_id):
 
         remaining_length = 2
-        pkt = struct.pack('!BBH', self.MSG_PUBREC, remaining_length, msg_id)
+        pkt = struct.pack('!BBH', mqttConst.MSG_PUBREC, remaining_length, msg_id)
 
         return self._push_on_send_queue(pkt)
 
+    def _drop_message(self):
+
+        if self._output_queue_size == -1:
+            return False
+        elif self._output_queue_size == 0:
+            return True
+        else:
+            return True if len(self._output_queue) >= self._output_queue_size else False
+
     def _push_on_send_queue(self, packet):
         succeded = False
+
+        if self._drop_message():
+            if self._output_queue_dropbehavior == mqttConst.DROP_OLDEST:
+                self._out_packet_mutex.acquire()
+                if self._out_packet_mutex.locked():
+                    self._output_queue.pop(0)
+                    print('Drop Oldest')
+                self._out_packet_mutex.release()
+            else:
+                print('Drop newest')
+                return False
 
         self._out_packet_mutex.acquire()
         if self._out_packet_mutex.locked():
@@ -388,7 +398,7 @@ class MQTTClient:
 
         if result == 0:
             self._conn_state_mutex.acquire()
-            self._connection_state = self.STATE_CONNECTED
+            self._connection_state = mqttConst.STATE_CONNECTED
             self._conn_state_mutex.release()
             return True
 
@@ -463,15 +473,15 @@ class MQTTClient:
     def _parse_packet(self, cmd, payload):
         msg_type = cmd & 0xF0
 
-        if msg_type == self.MSG_CONNACK:
+        if msg_type == mqttConst.MSG_CONNACK:
             return self._parse_connack(payload)
-        elif msg_type == self.MSG_SUBACK:
+        elif msg_type == mqttConst.MSG_SUBACK:
             return self._parse_suback(payload)
-        elif msg_type == self.MSG_PUBACK:
+        elif msg_type == mqttConst.MSG_PUBACK:
             return self._parse_puback(payload)
-        elif msg_type == self.MSG_PUBLISH:
+        elif msg_type == mqttConst.MSG_PUBLISH:
             return self._parse_publish(cmd, payload)
-        elif msg_type == self.MSG_UNSUBACK:
+        elif msg_type == mqttConst.MSG_UNSUBACK:
             return self._parse_unsuback(payload)
         else:
             print('Unknown message type: %d' % msg_type)

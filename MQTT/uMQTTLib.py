@@ -1,20 +1,14 @@
 # import mqttCore
+import MQTT.uMQTTConst as mqttConst
 import MQTT.uMQTTClient as mqttClient
 # import shadowManager
 ## import deviceShadow
 #import AWSIoTPythonSDK.core.shadow.deviceShadow as deviceShadow
-# Constants
-# - Protocol types:
-MQTTv3_1 = 3
-MQTTv3_1_1 = 4
-# - OfflinePublishQueueing drop behavior:
-DROP_OLDEST = 0
-DROP_NEWEST = 1
-#
+
 
 class AWSIoTMQTTClient:
 
-    def __init__(self, clientID, protocolType=MQTTv3_1_1, cleanSession=True):
+    def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, cleanSession=True):
         self._mqttClient = mqttClient.MQTTClient(clientID, cleanSession, protocolType)
 
     # Configuration APIs
@@ -36,8 +30,8 @@ class AWSIoTMQTTClient:
     #def configureAutoReconnectBackoffTime(self, baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond):
     #    self._mqttCore.setBackoffTime(baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond)
 
-    #def configureOfflinePublishQueueing(self, queueSize, dropBehavior=DROP_NEWEST):
-    #    self._mqttCore.setOfflinePublishQueueing(queueSize, dropBehavior)
+    def configureOfflinePublishQueueing(self, queueSize, dropBehavior=mqttConst.DROP_NEWEST):
+        self._mqttClient.setOfflinePublishQueueing(queueSize, dropBehavior)
 
     #def configureDrainingFrequency(self, frequencyInHz):
     #    self._mqttCore.setDrainingIntervalSecond(1/float(frequencyInHz))
