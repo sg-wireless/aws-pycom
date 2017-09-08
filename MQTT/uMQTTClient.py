@@ -107,6 +107,9 @@ class MQTTClient:
         elif isinstance(payload, int) or isinstance(payload, float):
             self._will_message=str(payload)
 
+    def configIAMCredentials(self, srcAWSAccessKeyID, srcAWSSecretAccessKey, srcAWSSessionToken):
+        raise NotImplementedError ('Websockets not supported')
+
     def connect(self, keepAliveInterval=30):
         self._keepAliveInterval = keepAliveInterval
 

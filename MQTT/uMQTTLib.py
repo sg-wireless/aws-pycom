@@ -27,8 +27,8 @@ class AWSIoTMQTTClient:
     def configureEndpoint(self, hostName, portNumber):
         self._mqttClient.configEndpoint(hostName, portNumber)
 
-    #def configureIAMCredentials(self, AWSAccessKeyID, AWSSecretAccessKey, AWSSessionToken=""):
-        #self._mqttCore.configIAMCredentials(AWSAccessKeyID, AWSSecretAccessKey, AWSSessionToken)
+    def configureIAMCredentials(self, AWSAccessKeyID, AWSSecretAccessKey, AWSSessionToken=""):
+        self._mqttClient.configIAMCredentials(AWSAccessKeyID, AWSSecretAccessKey, AWSSessionToken)
 
     def configureCredentials(self, CAFilePath, KeyPath="", CertificatePath=""):  # Should be good for MutualAuth certs config and Websocket rootCA config
         self._mqttClient.configCredentials(CAFilePath, KeyPath, CertificatePath)
