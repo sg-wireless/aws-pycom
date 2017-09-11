@@ -1,5 +1,4 @@
-import MQTT.uMQTTConst as mqttConst
-
+import MQTT.uMQTTMsg as mqttMsg
 import socket
 import ssl
 import _thread
@@ -7,18 +6,12 @@ import time
 import struct
 import select
 
-class MQTTMessage:
-    def __init__(self):
-        self.timestamp = 0
-        self.state = 0
-        self.dup = False
-        self.mid = 0
-        self.topic = ""
-        self.payload = None
-        self.qos = 0
-        self.retain = False
-
 class MQTTClient:
+
+    # Connection state
+    STATE_CONNECTED = 0x01
+    STATE_CONNECTING = 0x02
+    STATE_DISCONNECTED = 0x03
 
     def __init__(self, clientID, cleanSession, protocol):
         self.client_id = clientID
@@ -43,8 +36,8 @@ class MQTTClient:
         self._output_queue=[]
         self._output_queue_size=-1
         self._output_queue_dropbehavior=-1
-        self._io_thread=_thread.start_new_thread(self._io_thread_func,())
-        self._connection_state = mqttConst.STATE_DISCONNECTED
+        _thread.start_new_thread(self._io_thread_func,())
+        self._connection_state = self.STATE_DISCONNECTED
         self._connectdisconnectTimeout = 30
         self._mqttOperationTimeout = 5
         self._conn_state_mutex=_thread.allocate_lock()
@@ -54,6 +47,15 @@ class MQTTClient:
         self._subscribeSent = False
         self._unsubscribeSent = False
         self._poll = select.poll()
+        self._receive_timeout=3000
+        self._pingSent=False
+        self._ping_interval=20
+        self._waiting_ping_resp=False
+        self._baseReconnectTimeSecond=1
+        self._maximumReconnectTimeSecond=32
+        self._minimumConnectTimeSecond=20
+        self._draining_interval=2
+        self._draining_cutoff=3
 
     def configEndpoint(self, srcHost, srcPort):
         self._host = srcHost
@@ -94,15 +96,25 @@ class MQTTClient:
         raise NotImplementedError ('Websockets not supported')
 
     def setOfflinePublishQueueing(self, srcQueueSize, srcDropBehavior):
-        if srcDropBehavior != mqttConst.DROP_OLDEST and srcDropBehavior != mqttConst.DROP_NEWEST:
+        if srcDropBehavior != mqttMsg.DROP_OLDEST and srcDropBehavior != mqttMsg.DROP_NEWEST:
             raise ValueError("Invalid packet drop behavior")
 
         self._output_queue_size=srcQueueSize
         self._output_queue_dropbehavior=srcDropBehavior
 
+    def setDrainingIntervalSecond(self, srcDrainingIntervalSecond):
+        self._draining_interval=srcDrainingIntervalSecond
+
+    def setBackoffTiming(self, srcBaseReconnectTimeSecond, srcMaximumReconnectTimeSecond, srcMinimumConnectTimeSecond):
+        self._baseReconnectTimeSecond=srcBaseReconnectTimeSecond
+        self._maximumReconnectTimeSecond=srcMaximumReconnectTimeSecond
+        self._minimumConnectTimeSecond=srcMinimumConnectTimeSecond
+
     def connect(self, keepAliveInterval=30):
         self._keepAliveInterval = keepAliveInterval
-
+        self._conn_state_mutex.acquire()
+        self._connection_state = self.STATE_CONNECTING
+        self._conn_state_mutex.release()
         try:
             if self._sock:
                 self._poll.unregister(self._sock)
@@ -117,21 +129,26 @@ class MQTTClient:
                     keyfile=self._key,
                     ca_certs=self._cafile,
                     cert_reqs=ssl.CERT_REQUIRED)
+
             self._sock.connect(socket.getaddrinfo(self._host, self._port)[0][-1])
             self._poll.register(self._sock, select.POLLIN)
         except socket.error as err:
             print("Socket create error: {0}".format(err))
-            return False
 
+            self._conn_state_mutex.acquire()
+            self._connection_state = self.STATE_DISCONNECTED
+            self._conn_state_mutex.release()
+
+            return False
         self._send_connect(self._keepAliveInterval, self._cleanSession)
 
         # delay to check the state
         count_10ms = 0
-        while(count_10ms <= self._connectdisconnectTimeout * 100 and self._connection_state != mqttConst.STATE_CONNECTED):
+        while(count_10ms <= self._connectdisconnectTimeout * 100 and self._connection_state != self.STATE_CONNECTED):
             count_10ms += 1
             time.sleep(0.01)
 
-        return True if self._connection_state == mqttConst.STATE_CONNECTED else False
+        return True if self._connection_state == self.STATE_CONNECTED else False
 
     def subscribe(self, topic, qos, callback):
         if (topic is None or callback is None):
@@ -142,9 +159,9 @@ class MQTTClient:
 
         self._pid += 1
         pkt = bytearray([0x82])
-        pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
-        pkt.extend(self._encode_16(self._pid))
-        pkt.extend(self._pascal_string(topic))
+        pkt.extend(mqttMsg._encode_varlen_length(pkt_len)) # len of the remaining
+        pkt.extend(mqttMsg._encode_16(self._pid))
+        pkt.extend(mqttMsg._pascal_string(topic))
         pkt.append(qos)
 
         self._subscribeSent = False
@@ -174,11 +191,11 @@ class MQTTClient:
 
         pkt = bytearray()
         pkt.append(hdr)
-        pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
-        pkt.extend(self._pascal_string(topic))
+        pkt.extend(mqttMsg._encode_varlen_length(pkt_len)) # len of the remaining
+        pkt.extend(mqttMsg._pascal_string(topic))
         if qos:
             self._pid += 1 #todo: I don't think this is the way to deal with the packet id
-            pkt.extend(self._encode_16(self._pid))
+            pkt.extend(mqttMsg._encode_16(self._pid))
 
         self._push_on_send_queue(pkt)
         self._push_on_send_queue(payload)
@@ -213,7 +230,7 @@ class MQTTClient:
 
     def disconnect(self):
 
-        pkt = struct.pack('!BB', mqttConst.MSG_DISCONNECT, 0)
+        pkt = struct.pack('!BB', mqttMsg.MSG_DISCONNECT, 0)
         self._push_on_send_queue(pkt)
 
         time.sleep(self._connectdisconnectTimeout)
@@ -223,83 +240,6 @@ class MQTTClient:
             self._sock = None
 
         return True
-
-    def _encode_16(self, x):
-        return struct.pack("!H", x)
-
-    def _pascal_string(self, s):
-        return struct.pack("!H", len(s)) + s
-
-    def _encode_varlen_length(self, length):
-        i = 0
-        buff = bytearray()
-        while 1:
-            buff.append(length % 128)
-            length = length // 128
-            if length > 0:
-                buff[i] = buff[i] | 0x80
-                i += 1
-            else:
-                break
-
-        return buff
-
-    def _topic_matches_sub(self, sub, topic):
-        result = True
-        multilevel_wildcard = False
-
-        slen = len(sub)
-        tlen = len(topic)
-
-        if slen > 0 and tlen > 0:
-            if (sub[0] == '$' and topic[0] != '$') or (topic[0] == '$' and sub[0] != '$'):
-                return False
-
-        spos = 0
-        tpos = 0
-
-        while spos < slen and tpos < tlen:
-            if sub[spos] == topic[tpos]:
-                if tpos == tlen-1:
-                    # Check for e.g. foo matching foo/#
-                    if spos == slen-3 and sub[spos+1] == '/' and sub[spos+2] == '#':
-                        result = True
-                        multilevel_wildcard = True
-                        break
-
-                spos += 1
-                tpos += 1
-
-                if tpos == tlen and spos == slen-1 and sub[spos] == '+':
-                    spos += 1
-                    result = True
-                    break
-            else:
-                if sub[spos] == '+':
-                    spos += 1
-                    while tpos < tlen and topic[tpos] != '/':
-                        tpos += 1
-                    if tpos == tlen and spos == slen:
-                        result = True
-                        break
-
-                elif sub[spos] == '#':
-                    multilevel_wildcard = True
-                    if spos+1 != slen:
-                        result = False
-                        break
-                    else:
-                        result = True
-                        break
-
-                else:
-                    result = False
-                    break
-
-        if not multilevel_wildcard and (tpos < tlen or spos < slen):
-            result = False
-
-        return result
 
     def _send_connect(self, keepalive, clean_session):
 
@@ -313,50 +253,54 @@ class MQTTClient:
             flags |= (self._will_retain << 3 | self._will_qos << 1 | 1) << 2
             pkt_len += 4 + len(self._will_topic) + len(self._will_message)
 
-        pkt = bytearray([mqttConst.MSG_CONNECT]) # connect
-        pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
+        pkt = bytearray([mqttMsg.MSG_CONNECT]) # connect
+        pkt.extend(mqttMsg._encode_varlen_length(pkt_len)) # len of the remaining
         pkt.extend(b'\x00\x04MQTT\x04') # len of "MQTT" (16 bits), protocol name, and protocol version
         pkt.append(flags)
         pkt.extend(b'\x00\x00') # disable keepalive
-        pkt.extend(self._pascal_string(self.client_id))
+        pkt.extend(mqttMsg._pascal_string(self.client_id))
         if self._will_message:
-            pkt.extend(self._pascal_string(self._will_topic))
-            pkt.extend(self._pascal_string(self._will_message))
+            pkt.extend(mqttMsg._pascal_string(self._will_topic))
+            pkt.extend(mqttMsg._pascal_string(self._will_message))
         if self._user:
-            pkt.extend(self._pascal_string(self._user))
+            pkt.extend(mqttMsg._pascal_string(self._user))
         if self._password:
-            pkt.extend(self._pascal_string(self._password))
+            pkt.extend(mqttMsg._pascal_string(self._password))
 
-        return self._push_on_send_queue(pkt)
+        return self._push_on_send_queue(pkt, True)
 
     def _send_unsubscribe(self, topic, dup=False):
 
         pkt = bytearray()
-        msg_type = mqttConst.MSG_UNSUBSCRIBE | (dup<<3) | (1<<1)
+        msg_type = mqttMsg.MSG_UNSUBSCRIBE | (dup<<3) | (1<<1)
         pkt.extend(struct.pack("!B", msg_type))
 
         remaining_length = 2 + 2 + len(topic)
-        pkt.extend(self._encode_varlen_length(remaining_length))
+        pkt.extend(mqttMsg._encode_varlen_length(remaining_length))
 
         self._pid += 1
-        pkt.extend(self._encode_16(self._pid))
-        pkt.extend(self._pascal_string(topic))
+        pkt.extend(mqttMsg._encode_16(self._pid))
+        pkt.extend(mqttMsg._pascal_string(topic))
 
         return self._push_on_send_queue(pkt)
 
     def _send_puback(self, msg_id):
 
         remaining_length = 2
-        pkt = struct.pack('!BBH', mqttConst.MSG_PUBACK, remaining_length, msg_id)
+        pkt = struct.pack('!BBH', mqttMsg.MSG_PUBACK, remaining_length, msg_id)
 
         return self._push_on_send_queue(pkt)
 
     def _send_pubrec(self, msg_id):
 
         remaining_length = 2
-        pkt = struct.pack('!BBH', mqttConst.MSG_PUBREC, remaining_length, msg_id)
+        pkt = struct.pack('!BBH', mqttMsg.MSG_PUBREC, remaining_length, msg_id)
 
         return self._push_on_send_queue(pkt)
+
+    def _send_pingreq(self):
+        pkt = struct.pack('!BB', mqttMsg.MSG_PINGREQ, 0)
+        return self._push_on_send_queue(pkt, True)
 
     def _drop_message(self):
 
@@ -367,11 +311,11 @@ class MQTTClient:
         else:
             return True if len(self._output_queue) >= self._output_queue_size else False
 
-    def _push_on_send_queue(self, packet):
+    def _push_on_send_queue(self, packet,prioritize=False):
         succeded = False
 
         if self._drop_message():
-            if self._output_queue_dropbehavior == mqttConst.DROP_OLDEST:
+            if self._output_queue_dropbehavior == mqttMsg.DROP_OLDEST:
                 self._out_packet_mutex.acquire()
                 if self._out_packet_mutex.locked():
                     self._output_queue.pop(0)
@@ -383,7 +327,10 @@ class MQTTClient:
 
         self._out_packet_mutex.acquire()
         if self._out_packet_mutex.locked():
-            self._output_queue.append((packet))
+            if prioritize:
+                self._send_packet(packet);
+            else:
+                self._output_queue.append(packet)
             succeded = True
         self._out_packet_mutex.release()
 
@@ -398,11 +345,14 @@ class MQTTClient:
 
         if result == 0:
             self._conn_state_mutex.acquire()
-            self._connection_state = mqttConst.STATE_CONNECTED
+            self._connection_state = self.STATE_CONNECTED
             self._conn_state_mutex.release()
             return True
-
-        return False
+        else:
+            self._conn_state_mutex.acquire()
+            self._connection_state = mqttMsg.STATE_DISCONNECTED
+            self._conn_state_mutex.release()
+            return False
 
     def _parse_suback(self, payload):
         self._subscribeSent = True
@@ -423,7 +373,7 @@ class MQTTClient:
         notified = False
         self._callback_mutex.acquire()
         for t_obj in self._topic_callback_queue:
-            if self._topic_matches_sub(t_obj[0], message.topic):
+            if mqttMsg._topic_matches_sub(t_obj[0], message.topic):
                 t_obj[1](self, self._userdata, message)
                 notified = True
         self._callback_mutex.release()
@@ -432,7 +382,7 @@ class MQTTClient:
 
     def _parse_publish(self, cmd, packet):
 
-        msg = MQTTMessage()
+        msg = mqttMsg.MQTTMessage()
         msg.dup = (cmd & 0x08)>>3
         msg.qos = (cmd & 0x06)>>1
         msg.retain = (cmd & 0x01)
@@ -470,26 +420,32 @@ class MQTTClient:
         self._unsubscribeSent = True
         return True
 
+    def _parse_pingresp(self):
+        self._pingSent = True
+        return True
+
     def _parse_packet(self, cmd, payload):
         msg_type = cmd & 0xF0
 
-        if msg_type == mqttConst.MSG_CONNACK:
+        if msg_type == mqttMsg.MSG_CONNACK:
             return self._parse_connack(payload)
-        elif msg_type == mqttConst.MSG_SUBACK:
+        elif msg_type == mqttMsg.MSG_SUBACK:
             return self._parse_suback(payload)
-        elif msg_type == mqttConst.MSG_PUBACK:
+        elif msg_type == mqttMsg.MSG_PUBACK:
             return self._parse_puback(payload)
-        elif msg_type == mqttConst.MSG_PUBLISH:
+        elif msg_type == mqttMsg.MSG_PUBLISH:
             return self._parse_publish(cmd, payload)
-        elif msg_type == mqttConst.MSG_UNSUBACK:
+        elif msg_type == mqttMsg.MSG_UNSUBACK:
             return self._parse_unsuback(payload)
+        elif msg_type == mqttMsg.MSG_PINGRESP:
+            return self._parse_pingresp()
         else:
             print('Unknown message type: %d' % msg_type)
             return False
 
     def _receive_packet(self):
 
-        if not self._poll.poll(3000):
+        if not self._poll.poll(self._receive_timeout):
             return False
 
         # Read message type
@@ -531,7 +487,10 @@ class MQTTClient:
         # Read payload
         try:
             if self._sock:
-                payload = self._sock.recv(bytes_remaining)
+                if bytes_remaining > 0:
+                    payload = self._sock.recv(bytes_remaining)
+                else:
+                    payload = b''
         except socket.error as err:
                 print("Socket receive error: {0}".format(err))
                 return False
@@ -539,6 +498,7 @@ class MQTTClient:
         return self._parse_packet(msg_type, payload)
 
     def _send_packet(self, packet):
+        written = -1
         try:
             if self._sock:
                 written = self._sock.write(packet)
@@ -549,9 +509,33 @@ class MQTTClient:
 
         return True if len(packet) == written else False
 
+    def _verify_connection_state(self):
+
+        elapsed = time.time() - self._start_time
+        if not self._waiting_ping_resp and elapsed > self._ping_interval:
+            if self._connection_state == self.STATE_CONNECTED:
+                self._pingSent=False
+                self._send_pingreq()
+                self._waiting_ping_resp=True
+            elif self._connection_state == self.STATE_DISCONNECTED:
+                self.connect()
+
+            self._start_time = time.time()
+        elif self._waiting_ping_resp and (self._connection_state == self.STATE_CONNECTED or elapsed > self._mqttOperationTimeout):
+            if not self._pingSent:
+                self.connect()
+
+            self._start_time = time.time()
+            self._waiting_ping_resp=False
+
     def _io_thread_func(self):
         time.sleep(5.0)
+
+        self._start_time = time.time()
         while True:
+
+            self._verify_connection_state()
+
             self._out_packet_mutex.acquire()
             if self._out_packet_mutex.locked() and len(self._output_queue) > 0:
                 packet=self._output_queue[0]
@@ -559,4 +543,9 @@ class MQTTClient:
                     self._output_queue.pop(0)
             self._out_packet_mutex.release()
 
+            print('Queue Size: %d' % len(self._output_queue))
+
             self._receive_packet()
+
+            if len(self._output_queue) >= self._draining_cutoff:
+                time.sleep(self._draining_interval)

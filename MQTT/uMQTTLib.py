@@ -1,5 +1,5 @@
 # import mqttCore
-import MQTT.uMQTTConst as mqttConst
+import MQTT.uMQTTMsg as mqttMsg
 import MQTT.uMQTTClient as mqttClient
 # import shadowManager
 ## import deviceShadow
@@ -8,7 +8,7 @@ import MQTT.uMQTTClient as mqttClient
 
 class AWSIoTMQTTClient:
 
-    def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, cleanSession=True):
+    def __init__(self, clientID, protocolType=mqttMsg.MQTTv3_1_1, cleanSession=True):
         self._mqttClient = mqttClient.MQTTClient(clientID, cleanSession, protocolType)
 
     # Configuration APIs
@@ -27,14 +27,14 @@ class AWSIoTMQTTClient:
     def configureCredentials(self, CAFilePath, KeyPath="", CertificatePath=""):  # Should be good for MutualAuth certs config and Websocket rootCA config
         self._mqttClient.configCredentials(CAFilePath, KeyPath, CertificatePath)
 
-    #def configureAutoReconnectBackoffTime(self, baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond):
-    #    self._mqttCore.setBackoffTime(baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond)
+    def configureAutoReconnectBackoffTime(self, baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond):
+        self._mqttClient.setBackoffTiming(baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond)
 
-    def configureOfflinePublishQueueing(self, queueSize, dropBehavior=mqttConst.DROP_NEWEST):
+    def configureOfflinePublishQueueing(self, queueSize, dropBehavior=mqttMsg.DROP_NEWEST):
         self._mqttClient.setOfflinePublishQueueing(queueSize, dropBehavior)
 
-    #def configureDrainingFrequency(self, frequencyInHz):
-    #    self._mqttCore.setDrainingIntervalSecond(1/float(frequencyInHz))
+    def configureDrainingFrequency(self, frequencyInHz):
+        self._mqttClient.setDrainingIntervalSecond(1/float(frequencyInHz))
 
     def configureConnectDisconnectTimeout(self, timeoutSecond):
         self._mqttClient.setConnectDisconnectTimeoutSecond(timeoutSecond)
