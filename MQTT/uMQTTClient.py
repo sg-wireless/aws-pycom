@@ -36,6 +36,7 @@ class MQTTClient:
         self._output_queue=[]
         self._output_queue_size=-1
         self._output_queue_dropbehavior=-1
+        _thread.stack_size(6144)
         _thread.start_new_thread(self._io_thread_func,())
         self._connection_state = self.STATE_DISCONNECTED
         self._connectdisconnectTimeout = 30
@@ -51,6 +52,7 @@ class MQTTClient:
         self._pingSent=False
         self._ping_interval=20
         self._waiting_ping_resp=False
+        self._ping_cutoff=3
         self._baseReconnectTimeSecond=1
         self._maximumReconnectTimeSecond=32
         self._minimumConnectTimeSecond=20
@@ -181,7 +183,6 @@ class MQTTClient:
         return False
 
     def publish(self, topic, payload, qos, retain, dup=False):
-
 
         topic = topic.encode('utf8')
         hdr = 0x30 | (dup << 3) | (qos << 1) | retain
@@ -319,10 +320,8 @@ class MQTTClient:
                 self._out_packet_mutex.acquire()
                 if self._out_packet_mutex.locked():
                     self._output_queue.pop(0)
-                    print('Drop Oldest')
                 self._out_packet_mutex.release()
             else:
-                print('Drop newest')
                 return False
 
         self._out_packet_mutex.acquire()
@@ -394,8 +393,6 @@ class MQTTClient:
 
         if len(msg.topic) == 0:
             return False
-
-        #msg.topic = msg.topic.decode('utf-8')
 
         if msg.qos > 0:
             pack_format = "!H" + str(len(packet)-2) + 's'
@@ -523,7 +520,12 @@ class MQTTClient:
             self._start_time = time.time()
         elif self._waiting_ping_resp and (self._connection_state == self.STATE_CONNECTED or elapsed > self._mqttOperationTimeout):
             if not self._pingSent:
-                self.connect()
+                if self._ping_failures <= self._ping_cutoff:
+                    self._ping_failures+=1
+                else:
+                    self.connect()
+            else:
+                self._ping_failures=0
 
             self._start_time = time.time()
             self._waiting_ping_resp=False
@@ -532,6 +534,7 @@ class MQTTClient:
         time.sleep(5.0)
 
         self._start_time = time.time()
+        self._ping_failures=0
         while True:
 
             self._verify_connection_state()
