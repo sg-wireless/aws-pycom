@@ -1,14 +1,10 @@
-# import mqttCore
-import MQTT.uMQTTMsg as mqttMsg
+import MQTT.uMQTTConst as mqttConst
 import MQTT.uMQTTClient as mqttClient
-# import shadowManager
-## import deviceShadow
-#import AWSIoTPythonSDK.core.shadow.deviceShadow as deviceShadow
-
+import MQTT.uMQTTShadowManager as shadowManager
 
 class AWSIoTMQTTClient:
 
-    def __init__(self, clientID, protocolType=mqttMsg.MQTTv3_1_1, cleanSession=True):
+    def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, cleanSession=True):
         self._mqttClient = mqttClient.MQTTClient(clientID, cleanSession, protocolType)
 
     # Configuration APIs
@@ -30,7 +26,7 @@ class AWSIoTMQTTClient:
     def configureAutoReconnectBackoffTime(self, baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond):
         self._mqttClient.setBackoffTiming(baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond)
 
-    def configureOfflinePublishQueueing(self, queueSize, dropBehavior=mqttMsg.DROP_NEWEST):
+    def configureOfflinePublishQueueing(self, queueSize, dropBehavior=mqttConst.DROP_NEWEST):
         self._mqttClient.setOfflinePublishQueueing(queueSize, dropBehavior)
 
     def configureDrainingFrequency(self, frequencyInHz):
@@ -59,50 +55,50 @@ class AWSIoTMQTTClient:
         return self._mqttClient.unsubscribe(topic)
 
 
-#class AWSIoTMQTTShadowClient:
+class AWSIoTMQTTShadowClient:
 
-#    def __init__(self, clientID, protocolType=MQTTv3_1_1, useWebsocket=False, cleanSession=True):
+    def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, useWebsocket=False, cleanSession=True):
         # AWSIOTMQTTClient instance
-#        self._AWSIoTMQTTClient = AWSIoTMQTTClient(clientID, protocolType, useWebsocket, cleanSession)
+        self._AWSIoTMQTTClient = AWSIoTMQTTClient(clientID, cleanSession, protocolType)
         # Configure it to disable offline Publish Queueing
-#        self._AWSIoTMQTTClient.configureOfflinePublishQueueing(0)  # Disable queueing, no queueing for time-sentive shadow messages
-#        self._AWSIoTMQTTClient.configureDrainingFrequency(10)
+        self._AWSIoTMQTTClient.configureOfflinePublishQueueing(0)  # Disable queueing, no queueing for time-sentive shadow messages
+        self._AWSIoTMQTTClient.configureDrainingFrequency(10)
         # Now retrieve the configured mqttCore and init a shadowManager instance
-#        self._shadowManager = shadowManager.shadowManager(self._AWSIoTMQTTClient._mqttCore)
+        self._shadowManager = shadowManager.shadowManager(self._AWSIoTMQTTClient._mqttClient)
 
     # Configuration APIs
-#    def configureLastWill(self, topic, payload, QoS):
-#        self._AWSIoTMQTTClient.configureLastWill(topic, payload, QoS)
+    def configureLastWill(self, topic, payload, QoS):
+        self._AWSIoTMQTTClient.configureLastWill(topic, payload, QoS)
 
-#    def clearLastWill(self):
-#        self._AWSIoTMQTTClient.clearLastWill()
+    def clearLastWill(self):
+        self._AWSIoTMQTTClient.clearLastWill()
 
-#    def configureEndpoint(self, hostName, portNumber):
-#        self._AWSIoTMQTTClient.configureEndpoint(hostName, portNumber)
+    def configureEndpoint(self, hostName, portNumber):
+        self._AWSIoTMQTTClient.configureEndpoint(hostName, portNumber)
 
-#    def configureIAMCredentials(self, AWSAccessKeyID, AWSSecretAccessKey, AWSSTSToken=""):
+    def configureIAMCredentials(self, AWSAccessKeyID, AWSSecretAccessKey, AWSSTSToken=""):
         # AWSIoTMQTTClient.configureIAMCredentials
-#        self._AWSIoTMQTTClient.configureIAMCredentials(AWSAccessKeyID, AWSSecretAccessKey, AWSSTSToken)
+        self._AWSIoTMQTTClient.configureIAMCredentials(AWSAccessKeyID, AWSSecretAccessKey, AWSSTSToken)
 
-#    def configureCredentials(self, CAFilePath, KeyPath="", CertificatePath=""):  # Should be good for MutualAuth and Websocket
-#        self._AWSIoTMQTTClient.configureCredentials(CAFilePath, KeyPath, CertificatePath)
+    def configureCredentials(self, CAFilePath, KeyPath="", CertificatePath=""):  # Should be good for MutualAuth and Websocket
+        self._AWSIoTMQTTClient.configureCredentials(CAFilePath, KeyPath, CertificatePath)
 
-#    def configureAutoReconnectBackoffTime(self, baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond):
-#        self._AWSIoTMQTTClient.configureAutoReconnectBackoffTime(baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond)
+    def configureAutoReconnectBackoffTime(self, baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond):
+        self._AWSIoTMQTTClient.configureAutoReconnectBackoffTime(baseReconnectQuietTimeSecond, maxReconnectQuietTimeSecond, stableConnectionTimeSecond)
 
-#    def configureConnectDisconnectTimeout(self, timeoutSecond):
-#        self._AWSIoTMQTTClient.configureConnectDisconnectTimeout(timeoutSecond)
+    def configureConnectDisconnectTimeout(self, timeoutSecond):
+        self._AWSIoTMQTTClient.configureConnectDisconnectTimeout(timeoutSecond)
 
-#    def configureMQTTOperationTimeout(self, timeoutSecond):
-#        self._AWSIoTMQTTClient.configureMQTTOperationTimeout(timeoutSecond)
+    def configureMQTTOperationTimeout(self, timeoutSecond):
+        self._AWSIoTMQTTClient.configureMQTTOperationTimeout(timeoutSecond)
 
     # Start the MQTT connection
-#    def connect(self, keepAliveIntervalSecond=30):
-#        return self._AWSIoTMQTTClient.connect(keepAliveIntervalSecond)
+    def connect(self, keepAliveIntervalSecond=30):
+        return self._AWSIoTMQTTClient.connect(keepAliveIntervalSecond)
 
     # End the MQTT connection
-#    def disconnect(self):
-#        return self._AWSIoTMQTTClient.disconnect()
+    def disconnect(self):
+        return self._AWSIoTMQTTClient.disconnect()
 
     # Shadow management API
 #    def createShadowHandlerWithName(self, shadowName, isPersistentSubscribe):
@@ -117,7 +113,6 @@ class AWSIoTMQTTClient:
         # deviceShadow.shadowUnregisterDelta
 
     # MQTT connection management API
-#    def getMQTTConnection(self):
-
+    def getMQTTConnection(self):
         # Return the internal AWSIoTMQTTClient instance
-#        return self._AWSIoTMQTTClient
+        return self._AWSIoTMQTTClient
