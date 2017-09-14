@@ -156,9 +156,9 @@ class MQTTClient:
             self._pid += 1 #todo: I don't think this is the way to deal with the packet id
             pkt.extend(self._encode_16(self._pid))
 
+        pkt = pkt + payload
         self._msgHandler.push_on_send_queue(pkt)
-        self._msgHandler.push_on_send_queue(payload)
-
+        
     def _encode_16(self, x):
         return struct.pack("!H", x)
 
