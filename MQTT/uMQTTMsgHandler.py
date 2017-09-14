@@ -107,8 +107,8 @@ class MsgHandler:
     def _drop_message(self):
         if self._output_queue_size == -1:
             return False
-        elif (self._output_queue_size == 0) and (self._connection_state == mqttConst.STATE_DISCONNECTED):
-            return True
+        elif (self._output_queue_size == 0) and (self._connection_state == mqttConst.STATE_CONNECTED):
+            return False
         else:
             return True if len(self._output_queue) >= self._output_queue_size else False
 

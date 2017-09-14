@@ -69,12 +69,12 @@ class MQTTClient:
         self._will=True
         self._will_qos = QoS
         self._will_retain = retain
-        self._will_topic = topic.encode('utf8')
+        self._will_topic = topic.encode('utf-8')
 
         if isinstance(payload, bytearray):
             self._will_message=payload
         elif isinstance(payload, str):
-            self._will_message=payload.encode('utf8')
+            self._will_message=payload.encode('utf-8')
         elif isinstance(payload, int) or isinstance(payload, float):
             self._will_message=str(payload)
 
@@ -114,7 +114,7 @@ class MQTTClient:
         if (topic is None or callback is None):
             raise TypeError("Invalid subscribe values.")
 
-        topic = topic.encode('utf8')
+        topic = topic.encode('utf-8')
         pkt_len = 2 + 2 + len(topic) + 1 # packet identifier + len of topic (16 bits) + topic len + QOS
 
         self._pid += 1
@@ -141,7 +141,8 @@ class MQTTClient:
         return False
 
     def publish(self, topic, payload, qos, retain, dup=False):
-        topic = topic.encode('utf8')
+        topic = topic.encode('utf-8')
+        payload = payload.encode('utf-8')
         hdr = 0x30 | (dup << 3) | (qos << 1) | retain
         pkt_len = (2 + len(topic) +
                     (2 if qos else 0) +
@@ -257,7 +258,7 @@ class MQTTClient:
             time.sleep(0.01)
 
         if self._unsubscribeSent:
-            topic = topic.encode('utf8')
+            topic = topic.encode('utf-8')
             return self._remove_topic_callback(topic)
 
         return False

@@ -109,10 +109,10 @@ class deviceShadow:
                     self._shadowSubscribeStatusTable[currentAction] -= 1
                     if not self._isPersistentSubscribe and self._shadowSubscribeStatusTable.get(currentAction) <= 0:
                         self._shadowSubscribeStatusTable[currentAction] = 0
-                        _thread.start_new_thread(self._doNonPersistentUnsubscribe, args=[currentAction])
+                        self._doNonPersistentUnsubscribe(currentAction)
                     # Custom callback
                     if self._shadowSubscribeCallbackTable.get(currentAction) is not None:
-                        _thread.start_new_thread(self._shadowSubscribeCallbackTable[currentAction], args=[payloadUTF8String, currentType, currentToken])
+                        self._shadowSubscribeCallbackTable[currentAction](payloadUTF8String, currentType, currentToken)
         # delta: Watch for version
         else:
             currentType += "/" + self._parseTopicShadowName(currentTopic)
@@ -124,12 +124,12 @@ class deviceShadow:
                     self._lastVersionInSync = incomingVersion
                     # Custom callback
                     if self._shadowSubscribeCallbackTable.get(currentAction) is not None:
-                        _thread.start_new_thread(self._shadowSubscribeCallbackTable[currentAction], args=[payloadUTF8String, currentType, None])
+                        self._shadowSubscribeCallbackTable[currentAction](payloadUTF8String, currentType, None)
         self._dataStructureLock.release()
 
     def _parseTopicAction(self, srcTopic):
         ret = None
-        fragments = srcTopic.split('/')
+        fragments = srcTopic.decode('utf-8').split('/')
         if fragments[5] == "delta":
             ret = "delta"
         else:
@@ -137,11 +137,11 @@ class deviceShadow:
         return ret
 
     def _parseTopicType(self, srcTopic):
-        fragments = srcTopic.split('/')
+        fragments = srcTopic.decode('utf-8').split('/')
         return fragments[5]
 
     def _parseTopicShadowName(self, srcTopic):
-        fragments = srcTopic.split('/')
+        fragments = srcTopic.decode('utf-8').split('/')
         return fragments[2]
 
     def _timerHandler(self, args):
