@@ -1,6 +1,7 @@
 import MQTT.uMQTTConst as mqttConst
 import MQTT.uMQTTClient as mqttClient
 import MQTT.uMQTTShadowManager as shadowManager
+import MQTT.uMQTTDeviceShadow as deviceShadow
 
 class AWSIoTMQTTClient:
 
@@ -101,9 +102,9 @@ class AWSIoTMQTTShadowClient:
         return self._AWSIoTMQTTClient.disconnect()
 
     # Shadow management API
-#    def createShadowHandlerWithName(self, shadowName, isPersistentSubscribe):
+    def createShadowHandlerWithName(self, shadowName, isPersistentSubscribe):
         # Create and return a deviceShadow instance
-#        return deviceShadow.deviceShadow(shadowName, isPersistentSubscribe, self._shadowManager)
+        return deviceShadow.deviceShadow(shadowName, isPersistentSubscribe, self._shadowManager)
         # Shadow APIs are accessible in deviceShadow instance":
         ###
         # deviceShadow.shadowGet

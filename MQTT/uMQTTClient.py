@@ -42,6 +42,9 @@ class MQTTClient:
         self._minimumConnectTimeSecond=20
         self._msgHandler=msgHandler.MsgHandler(self._recv_callback)
 
+    def getClientID(self):
+        return self.client_id
+
     def configEndpoint(self, srcHost, srcPort):
         self._msgHandler.setEndpoint(srcHost, srcPort)
 

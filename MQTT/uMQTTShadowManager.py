@@ -10,13 +10,16 @@ class shadowManager:
         self._mqttClient = MQTTClient
         self._subscribe_mutex = _thread.allocate_lock()
 
+    def getClientID(self):
+        return self._mqttClient.getClientID()
+
     def _getDeltaTopic(self, shadowName):
-        return "$aws/things/" + str(self._shadowName) + "/shadow/update/delta"
+        return "$aws/things/" + str(shadowName) + "/shadow/update/delta"
 
     def _getNonDeltaTopics(self, shadowName, actionName):
-        generalTopic = "$aws/things/" + str(self._shadowName) + "/shadow/" + str(self._actionName)
-        acceptTopic = "$aws/things/" + str(self._shadowName) + "/shadow/" + str(self._actionName) + "/accepted"
-        rejectTopic = "$aws/things/" + str(self._shadowName) + "/shadow/" + str(self._actionName) + "/rejected"
+        generalTopic = "$aws/things/" + str(shadowName) + "/shadow/" + str(actionName)
+        acceptTopic = "$aws/things/" + str(shadowName) + "/shadow/" + str(actionName) + "/accepted"
+        rejectTopic = "$aws/things/" + str(shadowName) + "/shadow/" + str(actionName) + "/rejected"
 
         return (generalTopic, acceptTopic, rejectTopic)
 
@@ -31,8 +34,8 @@ class shadowManager:
             self._mqttClient.subscribe(deltaTopic, 0, callback)
         else:
             (generalTopic, acceptTopic, rejectTopic) = self._getNonDeltaTopics(shadowName, shadowAction)
-            self._mqttClient.subscribe(acceptTopic, 0, srcCallback)
-            self._mqttClient.subscribe(rejectTopic, 0, srcCallback)
+            self._mqttClient.subscribe(acceptTopic, 0, callback)
+            self._mqttClient.subscribe(rejectTopic, 0, callback)
         time.sleep(2)
         self._subscribe_mutex.release()
 
