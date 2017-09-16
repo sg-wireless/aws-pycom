@@ -5,7 +5,7 @@ import MQTT.uMQTTDeviceShadow as deviceShadow
 
 class AWSIoTMQTTClient:
 
-    def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, cleanSession=True):
+    def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, useWebsocket=False, cleanSession=True):
         self._mqttClient = mqttClient.MQTTClient(clientID, cleanSession, protocolType)
 
     # Configuration APIs
@@ -60,7 +60,7 @@ class AWSIoTMQTTShadowClient:
 
     def __init__(self, clientID, protocolType=mqttConst.MQTTv3_1_1, useWebsocket=False, cleanSession=True):
         # AWSIOTMQTTClient instance
-        self._AWSIoTMQTTClient = AWSIoTMQTTClient(clientID, cleanSession, protocolType)
+        self._AWSIoTMQTTClient = AWSIoTMQTTClient(clientID, protocolType, useWebsocket, cleanSession)
         # Configure it to disable offline Publish Queueing
         self._AWSIoTMQTTClient.configureOfflinePublishQueueing(0)  # Disable queueing, no queueing for time-sentive shadow messages
         self._AWSIoTMQTTClient.configureDrainingFrequency(10)
