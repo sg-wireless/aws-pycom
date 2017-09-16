@@ -158,7 +158,7 @@ class MQTTClient:
 
         pkt = pkt + payload
         self._msgHandler.push_on_send_queue(pkt)
-        
+
     def _encode_16(self, x):
         return struct.pack("!H", x)
 
@@ -343,12 +343,6 @@ class MQTTClient:
     def _parse_suback(self, payload):
         self._subscribeSent = True
         print('Subscribed to topic')
-
-        # VIMP check below
-        #assert resp[0] == 0x90
-        #assert resp[2] == pkt[2] and resp[3] == pkt[3]
-        #if resp[4] == 0x80:
-        #    raise MQTTException(resp[4])
 
         return True
 
