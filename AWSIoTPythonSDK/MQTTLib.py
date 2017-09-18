@@ -1,7 +1,7 @@
-import MQTT.uMQTTConst as mqttConst
-import MQTT.uMQTTClient as mqttClient
-import MQTT.uMQTTShadowManager as shadowManager
-import MQTT.uMQTTDeviceShadow as deviceShadow
+import AWSIoTPythonSDK.MQTTConst as mqttConst
+import AWSIoTPythonSDK.MQTTClient as mqttClient
+import AWSIoTPythonSDK.MQTTShadowManager as shadowManager
+import AWSIoTPythonSDK.MQTTDeviceShadow as deviceShadow
 
 class AWSIoTMQTTClient:
 

@@ -1,4 +1,4 @@
-import MQTT.uMQTTConst as mqttConst
+import AWSIoTPythonSDK.MQTTConst as mqttConst
 import time
 import socket
 import ssl

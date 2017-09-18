@@ -1,5 +1,5 @@
-import MQTT.uMQTTConst as mqttConst
-import MQTT.uMQTTMsgHandler as msgHandler
+import AWSIoTPythonSDK.MQTTConst as mqttConst
+import AWSIoTPythonSDK.MQTTMsgHandler as msgHandler
 import time
 import struct
 import _thread
