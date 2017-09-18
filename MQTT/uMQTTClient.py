@@ -113,13 +113,15 @@ class MQTTClient:
     def subscribe(self, topic, qos, callback):
         if (topic is None or callback is None):
             raise TypeError("Invalid subscribe values.")
-
         topic = topic.encode('utf-8')
+
+        header = mqttConst.MSG_SUBSCRIBE | (1<<1)
+        pkt = bytearray([header])
+
         pkt_len = 2 + 2 + len(topic) + 1 # packet identifier + len of topic (16 bits) + topic len + QOS
+        pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
 
         self._pid += 1
-        pkt = bytearray([0x82])
-        pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
         pkt.extend(self._encode_16(self._pid))
         pkt.extend(self._pascal_string(topic))
         pkt.append(qos)
@@ -143,13 +145,13 @@ class MQTTClient:
     def publish(self, topic, payload, qos, retain, dup=False):
         topic = topic.encode('utf-8')
         payload = payload.encode('utf-8')
-        hdr = 0x30 | (dup << 3) | (qos << 1) | retain
+
+        header = mqttConst.MSG_PUBLISH | (dup << 3) | (qos << 1) | retain
         pkt_len = (2 + len(topic) +
                     (2 if qos else 0) +
                     (len(payload)))
 
-        pkt = bytearray()
-        pkt.append(hdr)
+        pkt = bytearray([header])
         pkt.extend(self._encode_varlen_length(pkt_len)) # len of the remaining
         pkt.extend(self._pascal_string(topic))
         if qos:
