@@ -50,3 +50,6 @@ class shadowManager:
             self._mqttClient.unsubscribe(acceptTopic)
             self._mqttClient.unsubscribe(rejectTopic)
         self._subscribe_mutex.release()
+
+    def insertShadowCallback(self, callback, payload, status, token):
+        self._mqttClient.insertShadowCallback(callback, payload, status, token)

@@ -421,3 +421,6 @@ class MQTTClient:
         else:
             print('Unknown message type: %d' % msg_type)
             return False
+
+    def insertShadowCallback(self, callback, payload, status, token):
+        self._msgHandler.insertShadowCallback(callback, payload, status, token)

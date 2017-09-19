@@ -1,29 +1,8 @@
+import AWSIoTPythonSDK.MQTTConst as mqttConst
 from machine import Timer
 import json
 import os
 import _thread
-
-class UUID:
-    int_ = int
-    bytes_ = bytes
-
-    def __init__(self, bytes=None, version=None):
-
-        self._int = UUID.int_.from_bytes(bytes, 'big')
-
-        self._int &= ~(0xc000 << 48)
-        self._int |= 0x8000 << 48
-        self._int &= ~(0xf000 << 64)
-        self._int |= version << 76
-
-    def __str__(self):
-        hex = '%032x' % self._int
-        return '%s-%s-%s-%s-%s' % (
-            hex[:8], hex[8:12], hex[12:16], hex[16:20], hex[20:])
-
-    @property
-    def urn(self):
-        return 'urn:uuid:' + str(self)
 
 class _basicJSONParser:
 
@@ -46,7 +25,6 @@ class _basicJSONParser:
         except ValueError:
             return False
         return True
-
 
 class deviceShadow:
     def __init__(self, srcShadowName, srcIsPersistentSubscribe, srcShadowManager):
@@ -112,7 +90,7 @@ class deviceShadow:
                         self._doNonPersistentUnsubscribe(currentAction)
                     # Custom callback
                     if self._shadowSubscribeCallbackTable.get(currentAction) is not None:
-                        self._shadowSubscribeCallbackTable[currentAction](payloadUTF8String, currentType, currentToken)
+                        self._shadowManagerHandler.insertShadowCallback(self._shadowSubscribeCallbackTable[currentAction], payloadUTF8String, currentType, currentToken)
         # delta: Watch for version
         else:
             currentType += "/" + self._parseTopicShadowName(currentTopic)
@@ -124,7 +102,7 @@ class deviceShadow:
                     self._lastVersionInSync = incomingVersion
                     # Custom callback
                     if self._shadowSubscribeCallbackTable.get(currentAction) is not None:
-                        self._shadowSubscribeCallbackTable[currentAction](payloadUTF8String, currentType, None)
+                        self._shadowManagerHandler.insertShadowCallback(self._shadowSubscribeCallbackTable[currentAction], payloadUTF8String, currentType, None)
         self._dataStructureLock.release()
 
     def _parseTopicAction(self, srcTopic):
@@ -168,7 +146,7 @@ class deviceShadow:
         # Update number of pending feedback
         self._shadowSubscribeStatusTable["get"] += 1
         # clientToken
-        currentToken = UUID(bytes=os.urandom(16), version=4).urn[9:]
+        currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4)
         self._tokenPool[currentToken] = None
         self._basicJSONParserHandler.setString("{}")
         self._basicJSONParserHandler.validateJSON()
@@ -192,7 +170,7 @@ class deviceShadow:
         # Update number of pending feedback
         self._shadowSubscribeStatusTable["delete"] += 1
         # clientToken
-        currentToken = UUID(bytes=os.urandom(16), version=4).urn[9:]
+        currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4)
         self._tokenPool[currentToken] = None
         self._basicJSONParserHandler.setString("{}")
         self._basicJSONParserHandler.validateJSON()
@@ -217,7 +195,7 @@ class deviceShadow:
         if self._basicJSONParserHandler.validateJSON():
             self._dataStructureLock.acquire()
             # clientToken
-            currentToken = UUID(bytes=os.urandom(16), version=4).urn[9:]
+            currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4)
             self._tokenPool[currentToken] = None
             self._basicJSONParserHandler.setAttributeValue("clientToken", currentToken)
             JSONPayloadWithToken = self._basicJSONParserHandler.regenerateString()

@@ -32,6 +32,8 @@ class MsgHandler:
         self._receive_timeout=3000
         self._draining_interval=2
         self._draining_cutoff=3
+        self._shadow_cb_queue=[]
+        self._shadow_cb_mutex=_thread.allocate_lock()
 
     def setOfflineQueueConfiguration(self, queueSize, dropBehavior):
         self._output_queue_size = queueSize
@@ -51,6 +53,18 @@ class MsgHandler:
 
     def setDrainingInterval(self, srcDrainingIntervalSecond):
         self._draining_interval=srcDrainingIntervalSecond
+
+    def insertShadowCallback(self, callback, payload, status, token):
+        self._shadow_cb_mutex.acquire()
+        self._shadow_cb_queue.append((callback, payload, status, token))
+        self._shadow_cb_mutex.release()
+
+    def _callShadowCallback(self):
+        self._shadow_cb_mutex.acquire()
+        if len(self._shadow_cb_queue) > 0:
+            cbObj = self._shadow_cb_queue.pop(0)
+            cbObj[0](cbObj[1],cbObj[2], cbObj[3])
+        self._shadow_cb_mutex.release()
 
     def createSocketConnection(self):
         self._conn_state_mutex.acquire()
@@ -250,6 +264,7 @@ class MsgHandler:
             self._out_packet_mutex.release()
 
             self._receive_packet()
+            self._callShadowCallback()
 
             if len(self._output_queue) >= self._draining_cutoff:
                 time.sleep(self._draining_interval)

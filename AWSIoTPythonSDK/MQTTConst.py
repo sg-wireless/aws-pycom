@@ -27,3 +27,21 @@ MSG_DISCONNECT = 0xE0
 STATE_CONNECTED = 0x01
 STATE_CONNECTING = 0x02
 STATE_DISCONNECTED = 0x03
+
+class UUID:
+    int_ = int
+    bytes_ = bytes
+
+    def __init__(self, bytes=None, version=None):
+
+        self._int = UUID.int_.from_bytes(bytes, 'big')
+
+        self._int &= ~(0xc000 << 48)
+        self._int |= 0x8000 << 48
+        self._int &= ~(0xf000 << 64)
+        self._int |= version << 76
+
+    def __str__(self):
+        hex = '%032x' % self._int
+        return '%s-%s-%s-%s-%s' % (
+            hex[:8], hex[8:12], hex[12:16], hex[16:20], hex[20:])
