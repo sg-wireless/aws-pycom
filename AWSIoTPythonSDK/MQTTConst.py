@@ -41,7 +41,6 @@ class UUID:
         self._int &= ~(0xf000 << 64)
         self._int |= version << 76
 
-    def __str__(self):
-        hex = '%032x' % self._int
-        return '%s-%s-%s-%s-%s' % (
-            hex[:8], hex[8:12], hex[12:16], hex[16:20], hex[20:])
+    @property
+    def urn(self):
+        return 'urn:uuid:' + str(self)

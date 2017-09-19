@@ -146,7 +146,7 @@ class deviceShadow:
         # Update number of pending feedback
         self._shadowSubscribeStatusTable["get"] += 1
         # clientToken
-        currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4)
+        currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4).urn[9:]
         self._tokenPool[currentToken] = None
         self._basicJSONParserHandler.setString("{}")
         self._basicJSONParserHandler.validateJSON()
@@ -170,7 +170,7 @@ class deviceShadow:
         # Update number of pending feedback
         self._shadowSubscribeStatusTable["delete"] += 1
         # clientToken
-        currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4)
+        currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4).urn[9:]
         self._tokenPool[currentToken] = None
         self._basicJSONParserHandler.setString("{}")
         self._basicJSONParserHandler.validateJSON()
@@ -195,7 +195,7 @@ class deviceShadow:
         if self._basicJSONParserHandler.validateJSON():
             self._dataStructureLock.acquire()
             # clientToken
-            currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4)
+            currentToken = mqttConst.UUID(bytes=os.urandom(16), version=4).urn[9:]
             self._tokenPool[currentToken] = None
             self._basicJSONParserHandler.setAttributeValue("clientToken", currentToken)
             JSONPayloadWithToken = self._basicJSONParserHandler.regenerateString()
