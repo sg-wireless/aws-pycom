@@ -7,7 +7,7 @@ WIFI_PASS = 'my wifi password'
 AWS_PORT = 8883
 AWS_HOST = 'aws host'
 AWS_ROOT_CA = 'aws root CA'
-AWS_PUBLIC_KEY = 'aws public key'
+AWS_CLIENT_CERT = 'aws client cert'
 AWS_PRIVATE_KEY = 'aws private key'
 
 ################## Subscribe / Publish client #################

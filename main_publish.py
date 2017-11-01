@@ -21,7 +21,7 @@ def customCallback(client, userdata, message):
 # configure the MQTT client
 pycomAwsMQTTClient = AWSIoTMQTTClient(config.CLIENT_ID)
 pycomAwsMQTTClient.configureEndpoint(config.AWS_HOST, config.AWS_PORT)
-pycomAwsMQTTClient.configureCredentials(config.AWS_ROOT_CA, config.AWS_PRIVATE_KEY, config.AWS_PUBLIC_KEY)
+pycomAwsMQTTClient.configureCredentials(config.AWS_ROOT_CA, config.AWS_PRIVATE_KEY, config.AWS_CLIENT_CERT)
 
 pycomAwsMQTTClient.configureOfflinePublishQueueing(config.OFFLINE_QUEUE_SIZE)
 pycomAwsMQTTClient.configureDrainingFrequency(config.DRAINING_FREQ)
