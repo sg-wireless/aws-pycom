@@ -1,14 +1,14 @@
 
 # wifi configuration
-WIFI_SSID = 'my wifi ssid'
-WIFI_PASS = 'my wifi password'
+WIFI_SSID = 'my_wifi_ssid'
+WIFI_PASS = 'my_wifi_password'
 
 # AWS general configuration
 AWS_PORT = 8883
-AWS_HOST = 'aws host'
-AWS_ROOT_CA = 'aws root CA'
-AWS_CLIENT_CERT = 'aws client cert'
-AWS_PRIVATE_KEY = 'aws private key'
+AWS_HOST = 'aws_host_url'
+AWS_ROOT_CA = '/flash/cert/aws_root.ca'
+AWS_CLIENT_CERT = '/flash/cert/aws_client.cert'
+AWS_PRIVATE_KEY = '/flash/cert/aws_private.key'
 
 ################## Subscribe / Publish client #################
 #CLIENT_ID = 'PycomPublishClient'
