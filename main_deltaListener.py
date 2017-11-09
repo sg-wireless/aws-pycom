@@ -1,4 +1,4 @@
-from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient
+from MQTTLib import AWSIoTMQTTShadowClient
 from network import WLAN
 import time
 import config
